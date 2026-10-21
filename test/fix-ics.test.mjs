@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { fixIcs } from "../lib/fix-ics.mjs";
+import { fixICS } from "../lib/fix-ics.mjs";
 
 const MINIMAL_ICS = [
   "BEGIN:VCALENDAR",
@@ -117,17 +117,17 @@ const ICS_EXISTING_TZ_PLUS_MISSING = [
   "END:VCALENDAR",
 ].join("\r\n");
 
-describe("fixIcs", () => {
+describe("fixICS", () => {
   it("passes through ICS with no TZID references", () => {
-    assert.equal(fixIcs(MINIMAL_ICS), MINIMAL_ICS);
+    assert.equal(fixICS(MINIMAL_ICS), MINIMAL_ICS);
   });
 
   it("passes through ICS where all TZIDs are already defined", () => {
-    assert.equal(fixIcs(ICS_WITH_DEFINED_TZ), ICS_WITH_DEFINED_TZ);
+    assert.equal(fixICS(ICS_WITH_DEFINED_TZ), ICS_WITH_DEFINED_TZ);
   });
 
   it("injects VTIMEZONE for a missing Windows TZID", () => {
-    const result = fixIcs(ICS_MISSING_TZ);
+    const result = fixICS(ICS_MISSING_TZ);
 
     assert.match(result, /BEGIN:VTIMEZONE/);
     assert.match(result, /TZID:Eastern Standard Time/);
@@ -144,7 +144,7 @@ describe("fixIcs", () => {
   });
 
   it("injects VTIMEZONE using the no-VEVENT fallback path", () => {
-    const result = fixIcs(ICS_MISSING_TZ_NO_VEVENT);
+    const result = fixICS(ICS_MISSING_TZ_NO_VEVENT);
 
     assert.match(result, /BEGIN:VTIMEZONE/);
     assert.match(result, /TZID:Eastern Standard Time/);
@@ -164,28 +164,26 @@ describe("fixIcs", () => {
     );
   });
 
-  it("skips unknown TZIDs without crashing", () => {
-    const result = fixIcs(ICS_UNKNOWN_TZ);
-    // No VTIMEZONE injected since the TZID is unknown
-    assert.ok(!result.includes("BEGIN:VTIMEZONE"));
-    // Original content preserved
-    assert.equal(result, ICS_UNKNOWN_TZ);
+  it("rejects unknown TZIDs even when a fallback is configured", () => {
+    assert.throws(() => fixICS(ICS_UNKNOWN_TZ), /unsupported timezone/);
+    assert.throws(() => fixICS(ICS_UNKNOWN_TZ, { fallbackIANA: "Asia/Tokyo" }), /unsupported timezone/);
   });
 
-  it("uses fallbackIANA for unknown TZIDs when provided", () => {
-    const result = fixIcs(ICS_UNKNOWN_TZ, { fallbackIANA: "Asia/Tokyo" });
-    assert.match(result, /BEGIN:VTIMEZONE/);
-    assert.match(result, /TZID:Totally Fake Time/);
+  it("uses fallbackIANA for Outlook's undefined Customized Time Zone", () => {
+    const input = ICS_UNKNOWN_TZ.replace("Totally Fake Time", "Customized Time Zone");
+    const result = fixICS(input, { fallbackIANA: "Asia/Tokyo" });
+    assert.match(result, /TZID:Customized Time Zone/);
     assert.match(result, /TZOFFSETTO:\+0900/);
+    assert.throws(() => fixICS(input), /unsupported timezone/);
   });
 
   it("treats TZID parsing as case-insensitive and supports quoted values", () => {
-    const result = fixIcs(ICS_CASE_VARIATIONS);
+    const result = fixICS(ICS_CASE_VARIATIONS);
     assert.equal(result, ICS_CASE_VARIATIONS);
   });
 
   it("inserts VTIMEZONE before non-VEVENT components that reference TZID", () => {
-    const result = fixIcs(ICS_WITH_VTODO);
+    const result = fixICS(ICS_WITH_VTODO);
     assert.match(result, /BEGIN:VTIMEZONE/);
 
     const vzIdx = result.indexOf("BEGIN:VTIMEZONE");
@@ -193,14 +191,12 @@ describe("fixIcs", () => {
     assert.ok(vzIdx < todoIdx, "VTIMEZONE should come before VTODO");
   });
 
-  it("injects known TZIDs even when unknown TZIDs are also present", () => {
-    const result = fixIcs(ICS_MIXED_KNOWN_UNKNOWN);
-    assert.match(result, /TZID:Eastern Standard Time/);
-    assert.ok(result.includes("BEGIN:VTIMEZONE"));
+  it("rejects mixed known and unknown timezones instead of returning a partly repaired calendar", () => {
+    assert.throws(() => fixICS(ICS_MIXED_KNOWN_UNKNOWN), /unsupported timezone/);
   });
 
   it("does not nest injected VTIMEZONE inside an existing VTIMEZONE", () => {
-    const result = fixIcs(ICS_EXISTING_TZ_PLUS_MISSING);
+    const result = fixICS(ICS_EXISTING_TZ_PLUS_MISSING);
 
     // The injected VTIMEZONE for Eastern Standard Time must not appear
     // between BEGIN:VTIMEZONE/END:VTIMEZONE of the Customized Time Zone block.
@@ -214,7 +210,7 @@ describe("fixIcs", () => {
   });
 
   it("produces well-formed lines with no glued tokens after injection", () => {
-    const result = fixIcs(ICS_EXISTING_TZ_PLUS_MISSING);
+    const result = fixICS(ICS_EXISTING_TZ_PLUS_MISSING);
 
     // Every line should contain at most one ICS token — no "END:VTIMEZONEBEGIN:..."
     const lines = result.split(/\r?\n/);

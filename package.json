@@ -6,9 +6,22 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "wrangler deploy --dry-run --outdir .wrangler/build",
+    "subscription-url": "node scripts/subscription-url.mjs",
+    "update-timezones": "node scripts/update-timezones.mjs && node scripts/update-windows-zones.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4"
+    "cldr-core": "^48.2.0",
+    "esbuild": "^0.28.2",
+    "ical.js": "^2.2.1",
+    "miniflare": "5.20261019.1-beta",
+    "tzdata": "^1.0.52",
+    "wrangler": "^4.151.3"
+  },
+  "description": "Repair missing Outlook calendar timezone definitions for private calendar subscriptions.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
   }
 }

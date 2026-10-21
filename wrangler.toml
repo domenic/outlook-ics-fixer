@@ -1,11 +1,10 @@
 name = "ics-timezone-fixer"
 main = "lib/index.mjs"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-10-21"
 
-# Set your Outlook ICS URL here (or use `wrangler secret put ICS_URL` for secrets)
-[vars]
-FALLBACK_IANA = "Asia/Tokyo"
+# Set ICS_URL and optional FALLBACK_IANA using `wrangler secret bulk .dev.vars`.
 
-# Optional: custom domain (configure after first deploy)
-# [routes]
-# routes = [{ pattern = "cal.domenic.me", custom_domain = true }]
+# Optional: replace the domain, uncomment this block, and redeploy.
+# [[routes]]
+# pattern = "cal.example.com"
+# custom_domain = true
