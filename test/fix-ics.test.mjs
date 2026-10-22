@@ -165,8 +165,8 @@ describe("fixICS", () => {
   });
 
   it("rejects unknown TZIDs even when a fallback is configured", () => {
-    assert.throws(() => fixICS(ICS_UNKNOWN_TZ), /unsupported timezone/);
-    assert.throws(() => fixICS(ICS_UNKNOWN_TZ, { fallbackIANA: "Asia/Tokyo" }), /unsupported timezone/);
+    assert.throws(() => fixICS(ICS_UNKNOWN_TZ), /unsupported time zone/);
+    assert.throws(() => fixICS(ICS_UNKNOWN_TZ, { fallbackIANA: "Asia/Tokyo" }), /unsupported time zone/);
   });
 
   it("uses fallbackIANA for Outlook's undefined Customized Time Zone", () => {
@@ -174,7 +174,7 @@ describe("fixICS", () => {
     const result = fixICS(input, { fallbackIANA: "Asia/Tokyo" });
     assert.match(result, /TZID:Customized Time Zone/);
     assert.match(result, /TZOFFSETTO:\+0900/);
-    assert.throws(() => fixICS(input), /unsupported timezone/);
+    assert.throws(() => fixICS(input), /unsupported time zone/);
   });
 
   it("treats TZID parsing as case-insensitive and supports quoted values", () => {
@@ -191,8 +191,8 @@ describe("fixICS", () => {
     assert.ok(vzIdx < todoIdx, "VTIMEZONE should come before VTODO");
   });
 
-  it("rejects mixed known and unknown timezones instead of returning a partly repaired calendar", () => {
-    assert.throws(() => fixICS(ICS_MIXED_KNOWN_UNKNOWN), /unsupported timezone/);
+  it("rejects mixed known and unknown time zones instead of returning a partly repaired calendar", () => {
+    assert.throws(() => fixICS(ICS_MIXED_KNOWN_UNKNOWN), /unsupported time zone/);
   });
 
   it("does not nest injected VTIMEZONE inside an existing VTIMEZONE", () => {

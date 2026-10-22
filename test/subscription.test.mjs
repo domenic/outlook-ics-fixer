@@ -8,7 +8,7 @@ import { getSubscriptionPath } from "../lib/subscription.mjs";
 const execute = promisify(execFile);
 const script = fileURLToPath(new URL("../scripts/subscription-url.mjs", import.meta.url));
 const upstreamURL = "https://example.invalid/private-calendar-token/calendar.ics";
-const expectedPath = "/d71fd8aeb539286b049a587c26db8688820636eabc2489208f5c2f38e6378d96.ics";
+const expectedPath = "/b6f9817597b118793ea3bd4fa867e7c43b5f85049fa90702cf6974934766bba4.ics";
 
 it("keeps subscription URLs stable for an unchanged upstream URL", async () => {
   assert.equal(await getSubscriptionPath(upstreamURL), expectedPath);

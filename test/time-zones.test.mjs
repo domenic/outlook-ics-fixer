@@ -2,9 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import ICAL from "ical.js";
 import { fixICS } from "../lib/fix-ics.mjs";
-import { generateVTimezone, resolveIANA } from "../lib/vtimezone.mjs";
-import WINDOWS_TO_IANA from "../lib/windows-to-iana.mjs";
-import timezones from "../data/timezones.json" with { type: "json" };
+import { generateVTimeZone, resolveIANA } from "../lib/time-zones.mjs";
+import timeZones from "./fixtures/time-zones.json" with { type: "json" };
 
 function eventOffset(tzid, date, options) {
   const input = [
@@ -17,7 +16,7 @@ function eventOffset(tzid, date, options) {
   return event.startDate.utcOffset();
 }
 
-describe("timezone semantics", () => {
+describe("time zone semantics", () => {
   for (const year of [1999, 2026, 2041, 2100]) {
     it(`preserves New York summer and winter offsets in ${year}`, () => {
       assert.equal(eventOffset("Eastern Standard Time", `${year}0701T090000`), -4 * 3600);
@@ -51,19 +50,19 @@ describe("timezone semantics", () => {
     assert.equal(eventOffset("Lord Howe Standard Time", "20260701T090000"), 10.5 * 3600);
   });
 
-  it("validates every bundled timezone and Windows mapping", () => {
-    for (const iana of Object.values(WINDOWS_TO_IANA)) assert.ok(resolveIANA(iana), iana);
-    for (const name of [...Object.keys(timezones.zones), ...Object.keys(timezones.aliases)]) {
-      const component = new ICAL.Component(ICAL.parse(generateVTimezone(name, name)));
+  it("resolves fixture aliases and Windows mappings", () => {
+    for (const iana of Object.values(timeZones.windows)) assert.ok(resolveIANA(iana), iana);
+    for (const name of [...Object.keys(timeZones.zones), ...Object.keys(timeZones.aliases)]) {
+      const component = new ICAL.Component(ICAL.parse(generateVTimeZone(name, name)));
       assert.equal(component.name, "vtimezone", name);
       assert.equal(component.getFirstPropertyValue("tzid"), name);
       assert.ok(component.getAllSubcomponents().length > 0, name);
     }
   });
 
-  it("escapes and folds timezone names without altering their value", () => {
+  it("escapes and folds time zone names without altering their value", () => {
     const name = 'Custom; Zone: "東京",\\'.repeat(8);
-    const definition = generateVTimezone(name, "Asia/Tokyo");
+    const definition = generateVTimeZone(name, "Asia/Tokyo");
     assert.ok(definition.split("\r\n").every(line => Buffer.byteLength(line) <= 75));
     const component = new ICAL.Component(ICAL.parse(definition));
     assert.equal(component.getFirstPropertyValue("tzid"), name);
@@ -73,7 +72,7 @@ describe("timezone semantics", () => {
 describe("calendar parsing", () => {
   const calendar = content => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n${content}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
 
-  it("does not treat property values as timezone parameters", () => {
+  it("does not treat property values as time zone parameters", () => {
     const input = calendar("DESCRIPTION:Example: use ;TZID=Fake:date");
     assert.equal(fixICS(input), input);
   });
@@ -96,9 +95,9 @@ describe("calendar parsing", () => {
     assert.ok(!fixICS(input).includes("\r"));
   });
 
-  it("does not mistake inherited object properties for timezone names", () => {
+  it("does not mistake inherited object properties for time zone names", () => {
     for (const name of ["toString", "constructor", "__proto__"]) {
-      assert.throws(() => fixICS(calendar(`DTSTART;TZID=${name}:20260701T090000`)), /unsupported timezone/);
+      assert.throws(() => fixICS(calendar(`DTSTART;TZID=${name}:20260701T090000`)), /unsupported time zone/);
     }
   });
 

@@ -1,4 +1,5 @@
+# Your original input calendar URL from Outlook
 ICS_URL="https://outlook.office365.com/owa/calendar/your-secret-calendar-url/calendar.ics"
-# Only needed for an undefined "Customized Time Zone" in your Outlook feed.
-# Choose the IANA timezone that those events actually use.
-# FALLBACK_IANA="Asia/Tokyo"
+
+# Your default time zone, used when Outlook has an undefined "Customized Time Zone" in its ICS.
+FALLBACK_IANA="Asia/Tokyo"

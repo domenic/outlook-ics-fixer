@@ -1,15 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
-import { Miniflare, Log, LogLevel, convertV4MiniflareOptions } from "miniflare";
+import { createTestHarness } from "wrangler";
 import { getSubscriptionPath } from "../lib/subscription.mjs";
-import timezones from "../data/timezones.json" with { type: "json" };
+import timeZones from "./fixtures/time-zones.json" with { type: "json" };
 
-const bundle = await build({
-  entryPoints: [fileURLToPath(new URL("../lib/index.mjs", import.meta.url))],
-  bundle: true, write: false, format: "esm", platform: "browser"
-});
+const timeZoneAlias = {
+  "../.generated/time-zones.json": fileURLToPath(new URL("./fixtures/time-zones.json", import.meta.url))
+};
 const ICS_URL = "https://example.invalid/private-calendar-token/calendar.ics";
 const FEED = [
   "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "UID:test@example.invalid",
@@ -19,19 +20,39 @@ const FEED = [
 
 async function createWorker(t, { upstream = () => new Response(FEED), bindings = { ICS_URL } } = {}) {
   let calls = 0;
-  const options = { workers: [{
-    name: "ics-test", modules: true, script: bundle.outputFiles[0].text,
-    compatibilityDate: "2026-10-21", bindings,
-    outboundService: request => { calls++; return upstream(request); }
-  }],
-    log: new Log(LogLevel.NONE)
-  };
-  const worker = new Miniflare(convertV4MiniflareOptions(options));
-  t.after(() => worker.dispose());
-  await worker.ready;
+  // Wrangler routes outbound Worker requests through Node's `fetch()`.
+  const fetchImpl = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input, init) => {
+    const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+    if (url.hostname === "example.invalid") {
+      calls++;
+      return upstream(new Request(input, init));
+    }
+    return fetchImpl(input, init);
+  });
+  // Isolate Wrangler's local state and secrets from the project's `.dev.vars`.
+  const root = await mkdtemp(join(tmpdir(), "ics-worker-test-"));
+  const server = createTestHarness({ root, workers: [{ config: {
+    name: "ics-test",
+    main: fileURLToPath(new URL("../lib/index.mjs", import.meta.url)),
+    compatibility_date: "2026-10-21",
+    vars: bindings,
+    alias: timeZoneAlias
+  } }] });
+  t.after(async () => {
+    try {
+      await server.close();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  await server.listen();
   return {
-    worker, options,
-    request: (path, method = "GET") => worker.dispatchFetch(`https://calendar.example${path}`, { method }),
+    root,
+    update: config => server.update(options => ({
+      ...options, workers: [{ config: { ...options.workers[0].config, ...config } }]
+    })),
+    request: (path, method = "GET") => server.fetch(`https://calendar.example${path}`, { method }),
     calls: () => calls
   };
 }
@@ -62,29 +83,50 @@ describe("calendar Worker", () => {
     const app = await createWorker(t);
     const oldPath = await getSubscriptionPath(ICS_URL);
     await (await app.request(oldPath)).text();
-    const caches = await app.worker.getCaches();
-    const cacheKey = `https://calendar.example${oldPath}?tzdb=${timezones.version}&fallback=`;
-    assert.ok(await caches.default.match(cacheKey));
+    assert.equal(app.calls(), 1);
     const newURL = "https://example.invalid/new-private-token/calendar.ics";
-    await app.worker.setOptions(convertV4MiniflareOptions({ ...app.options, workers: [{ ...app.options.workers[0], bindings: { ICS_URL: newURL } }] }));
-    assert.ok(await (await app.worker.getCaches()).default.match(cacheKey));
+    await app.update({ vars: { ICS_URL: newURL } });
     assert.equal((await app.request(oldPath)).status, 404);
     assert.equal(app.calls(), 1);
     assert.equal((await app.request(await getSubscriptionPath(newURL))).status, 200);
     assert.equal(app.calls(), 2);
+    // Restoring the original URL proves its cached response survived the reloads.
+    await app.update({ vars: { ICS_URL } });
+    assert.match(await (await app.request(oldPath)).text(), /SUMMARY:Private event/);
+    assert.equal(app.calls(), 2);
   });
 
-  it("invalidates cached repairs when the fallback timezone changes", async t => {
+  it("invalidates cached repairs when the fallback time zone changes", async t => {
     const app = await createWorker(t, {
       upstream: () => new Response(FEED.replace("America/New_York", "Customized Time Zone")),
       bindings: { ICS_URL, FALLBACK_IANA: "Asia/Tokyo" }
     });
     const path = await getSubscriptionPath(ICS_URL);
     assert.match(await (await app.request(path)).text(), /TZOFFSETTO:\+0900/);
-    await app.worker.setOptions(convertV4MiniflareOptions({ ...app.options, workers: [{ ...app.options.workers[0], bindings: { ICS_URL, FALLBACK_IANA: "Etc/UTC" } }] }));
+    await app.update({ vars: { ICS_URL, FALLBACK_IANA: "Etc/UTC" } });
     const body = await (await app.request(path)).text();
     assert.match(body, /TZOFFSETTO:\+0000/);
     assert.ok(!body.includes("TZOFFSETTO:+0900"));
+    assert.equal(app.calls(), 2);
+    await app.update({ vars: { ICS_URL, FALLBACK_IANA: "Asia/Tokyo" } });
+    assert.match(await (await app.request(path)).text(), /TZOFFSETTO:\+0900/);
+    assert.equal(app.calls(), 2);
+  });
+
+  it("keeps the subscription URL but refreshes cached repairs after a data update", async t => {
+    const app = await createWorker(t);
+    const path = await getSubscriptionPath(ICS_URL);
+    await (await app.request(path)).text();
+    assert.equal(app.calls(), 1);
+    const updatedData = join(app.root, "updated-time-zones.json");
+    await writeFile(updatedData, JSON.stringify({ ...timeZones, revision: "new-data-revision" }));
+    await app.update({ alias: { "../.generated/time-zones.json": updatedData } });
+    assert.match(await (await app.request(path)).text(), /SUMMARY:Private event/);
+    assert.equal(app.calls(), 2);
+    assert.match(await (await app.request(path)).text(), /SUMMARY:Private event/);
+    assert.equal(app.calls(), 2);
+    await app.update({ alias: timeZoneAlias });
+    assert.match(await (await app.request(path)).text(), /SUMMARY:Private event/);
     assert.equal(app.calls(), 2);
   });
 
@@ -116,7 +158,7 @@ describe("calendar Worker", () => {
     ["upstream HTTP errors", () => new Response("Unavailable", { status: 503 })],
     ["HTML login pages", () => new Response("<!doctype html><title>Sign in</title>")],
     ["malformed calendars", () => new Response("BEGIN:VCALENDAR")],
-    ["unknown timezones", () => new Response(FEED.replace("America/New_York", "Unknown Zone"))]
+    ["unknown time zones", () => new Response(FEED.replace("America/New_York", "Unknown Zone"))]
   ]) {
     it(`returns 502 without caching ${name}`, async t => {
       const app = await createWorker(t, { upstream });

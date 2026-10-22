@@ -1,25 +1,25 @@
 {
-  "name": "ics-timezone-fixer",
-  "version": "1.0.0",
+  "name": "outlook-ics-fixer",
+  "version": "1.0.0-pre",
+  "description": "Repair missing Outlook calendar time zone definitions for private calendar subscriptions.",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test",
+    "test": "node --import ./test/use-fixtures.mjs --test test/*.test.mjs",
     "build": "wrangler deploy --dry-run --outdir .wrangler/build",
-    "subscription-url": "node scripts/subscription-url.mjs",
-    "update-timezones": "node scripts/update-timezones.mjs && node scripts/update-windows-zones.mjs"
+    "subscription-url": "node scripts/subscription-url.mjs"
   },
   "devDependencies": {
-    "cldr-core": "^48.2.0",
-    "esbuild": "^0.28.2",
     "ical.js": "^2.2.1",
-    "miniflare": "5.20261019.1-beta",
-    "tzdata": "^1.0.52",
+    "tar": "^7.5.22",
     "wrangler": "^4.151.3"
   },
-  "description": "Repair missing Outlook calendar timezone definitions for private calendar subscriptions.",
+  "allowScripts": {
+    "esbuild": false,
+    "workerd": false
+  },
   "license": "MIT",
   "engines": {
     "node": ">=24"
