@@ -20,7 +20,7 @@ This is the input calendar URL, with the broken time zones. Keep this URL privat
 
 You need [Node.js](https://nodejs.org/en) v24 or later and a [free Cloudflare account](https://www.cloudflare.com/).
 
-1. Download the code for this repository. TODO insert releases link. Perform the following steps in the directory of the downloaded code.
+1. Download and extract [the code for this repository](https://github.com/domenic/outlook-ics-fixer/archive/refs/heads/master.zip). Perform the following steps in the directory of the downloaded code.
 
 1. Copy `.dev.vars.example` to `.dev.vars`. Then, update it like so:
 
@@ -82,7 +82,7 @@ The deployed fixer keeps using its bundled data until you redeploy. If a downloa
 
 ### Using a custom domain
 
-If you've configured a custom domain in Cloudflare already, then you can change the coniguration of this tool to deploy onto it.
+If you've configured a custom domain in Cloudflare already, then you can change the configuration of this tool to deploy onto it.
 
 To achieve this, in `wrangler.toml`, uncomment the `[[routes]]` block and replace `cal.example.com` with your domain on Cloudflare. Redeploy and rerun `npm run subscription-url -- https://cal.example.com` to get the corresponding subscription URL.
 
