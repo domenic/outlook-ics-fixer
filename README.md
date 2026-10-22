@@ -20,7 +20,7 @@ This is the input calendar URL, with the broken time zones. Keep this URL privat
 
 You need [Node.js](https://nodejs.org/en) v24 or later and a [free Cloudflare account](https://www.cloudflare.com/).
 
-1. Download and extract [the code for this repository](https://github.com/domenic/outlook-ics-fixer/archive/refs/heads/master.zip). Perform the following steps in the directory of the downloaded code.
+1. Download and extract [the code for this repository](https://github.com/domenic/outlook-ics-fixer/archive/refs/heads/main.zip). Perform the following steps in the directory of the downloaded code.
 
 1. Copy `.dev.vars.example` to `.dev.vars`. Then, update it like so:
 
